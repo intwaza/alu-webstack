@@ -1,51 +1,15 @@
 #!/usr/bin/env bash
-# Display DNS record type and destination for subdomains via dig + awk
-# shellcheck disable=SC2086
-
-set -e
-
-if [ $# -lt 1 ]; then
-  echo "Usage: $0 <domain> [subdomain]" >&2
-  exit 1
-fi
-
-domain="$1"
-
-# If a subdomain is provided, only check that one; otherwise check the 4 required, in order
-if [ $# -ge 2 ]; then
-  subs=("$2")
-else
-  subs=(www lb-01 web-01 web-02)
-fi
-
-lookup_one() {
-  local sub="$1"
-  local fqdn="${sub}.${domain}"
-
-  # Use dig answer section; take the first record and extract TYPE and RDATA
-  # Handles A and CNAME (strips trailing dot from CNAME target)
-  local line
-  line="$(dig +noall +answer "$fqdn" | head -n1)"
-  if [ -z "$line" ]; then
-    # Grader says we can ignore edge cases; silently skip if none
-    return 0
-  fi
-
-  # Extract TYPE and DESTINATION with awk
-  # Example line: "www.example.com. 300 IN A 1.2.3.4"
-  # or:          "www.example.com. 300 IN CNAME lb-01.example.com."
-  echo "$line" | awk -v s="$sub" '
-    {
-      type=$4
-      # destination is everything after the 4th column (handles spaces in some RDATA)
-      $1=$2=$3=$4=""
-      sub(/^ +/,"")
-      dest=$0
-      sub(/\.$/,"",dest)    # strip trailing dot for CNAME targets
-      printf("The subdomain %s is a %s record and points to %s\n", s, type, dest)
-    }'
+# Comment
+prints () {
+    dig "$1" | grep -A1 'ANSWER SECTION:' | sed -r "s/$1./$2/g" | awk -F" " 'NR==2 { print "The subdomain " $1 " is a " $4 " record and points to " $5 }'
 }
-
-for sd in "${subs[@]}"; do
-  lookup_one "$sd"
-done
+if [ $# -eq 1 ];
+then
+    prints "www.$1" "www"
+    prints "lb-01.$1" "lb-01"
+    prints "web-01.$1" "web-01"
+    prints "web-02.$1" "web-02"
+elif [ $# -eq 2 ];
+then
+     prints "$2.$1" "$2"
+fi

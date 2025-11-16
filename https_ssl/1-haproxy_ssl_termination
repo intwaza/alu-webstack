@@ -1,0 +1,32 @@
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    daemon
+    maxconn 2048
+
+defaults
+    log     global
+    mode    http
+    option  httplog
+    option  dontlognull
+    option  forwardfor
+    timeout connect 5s
+    timeout client  50s
+    timeout server  50s
+
+# Plain HTTP -> redirect to HTTPS
+frontend fe-http
+    bind *:80
+    http-request redirect scheme https code 301 if !{ ssl_fc }
+
+# HTTPS terminates here
+frontend fe-https
+    bind *:443 ssl crt /etc/haproxy/certs/www.yourdomain.tld.pem
+    default_backend web-backend
+
+backend web-backend
+    balance roundrobin
+    option httpchk GET /
+    http-check expect rstatus (2|3)[0-9][0-9]
+    server web-01 3.83.224.222:80 check
+    server web-02 3.88.188.216:80 check
